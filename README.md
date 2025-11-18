@@ -4,9 +4,7 @@
 
 📸 应用截图
 
- <img width="2536" height="1298" alt="image" src="https://gitee.com/pengjuliu/allweather-portfolio-backtester/raw/master/newplot.png" />
-
-
+> 提示：请将上方占位替换为你的图表截图（`charts/portfolio.html` 导出为图片），或添加动画演示。
 
 ✨ 核心功能
 - 数据获取与增量更新：Tushare Pro（基金/ETF日线）与复权因子，自动合并去重

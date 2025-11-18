@@ -1,0 +1,5 @@
+pandas>=2.0.0
+numpy>=1.24.0
+tushare>=1.2.89
+plotly>=5.20.0
+akshare>=1.10.0
