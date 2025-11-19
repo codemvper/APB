@@ -4,7 +4,8 @@
 
 📸 应用截图
 
-> 提示：请将上方占位替换为你的图表截图（`charts/portfolio.html` 导出为图片），或添加动画演示。
+<img width="2560" height="1276" alt="image" src="https://github.com/user-attachments/assets/5e964c0e-9625-4462-ad0c-a7bbf0fdde83" />
+
 
 ✨ 核心功能
 - 数据获取与增量更新：Tushare Pro（基金/ETF日线）与复权因子，自动合并去重
