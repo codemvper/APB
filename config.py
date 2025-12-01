@@ -3,7 +3,7 @@ import datetime as _dt
 # === 基础配置 ===
 # 请按需修改，但默认已包含用户给定权重与token
 
-TUSHARE_TOKEN = "36a2f0e1e23c2bab7ae3b70572db4b6e87157831c7b5a3d1cf8efe24"
+TUSHARE_TOKEN = ""
 
 # ETF权重配置（合计100%）
 ETF_WEIGHTS = {
@@ -42,4 +42,5 @@ STRATEGY_MODE = "fixed"
 
 # 验证参数
 MAX_ABS_DAILY_RETURN = 0.20  # 单日涨跌幅超过此阈值标记为异常
+
 MAD_THRESHOLD = 5.0  # 基于中位数绝对偏差的异常阈值
