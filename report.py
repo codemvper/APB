@@ -86,3 +86,46 @@ def save_events_csv(events_df: pd.DataFrame, out_name: str = "rebalance_events.c
     out_path = os.path.join(REPORT_DIR, out_name)
     df.to_csv(out_path, index=False, encoding="utf-8-sig")
     return out_path
+
+
+def compute_yearly_metrics(nav: pd.Series, daily_ret: pd.Series, risk_free_annual: float = RISK_FREE_ANNUAL) -> pd.DataFrame:
+    if nav is None or nav.empty:
+        raise ValueError("NAV series is empty")
+    years = sorted(set(pd.to_datetime(nav.index).year))
+    rows = []
+    rf_daily = (1.0 + float(risk_free_annual)) ** (1.0 / 252.0) - 1.0
+    for y in years:
+        nav_y = nav[nav.index.year == y]
+        ret_y = daily_ret[daily_ret.index.year == y]
+        if nav_y.empty or ret_y.empty:
+            continue
+        start = nav_y.index.min()
+        end = nav_y.index.max()
+        total_return = float(nav_y.iloc[-1] / nav_y.iloc[0] - 1.0)
+        years_len = max(((end - start).days) / 365.25, 1e-8)
+        cagr = (1.0 + total_return) ** (1.0 / years_len) - 1.0
+        vol = float(np.std(ret_y, ddof=1) * np.sqrt(252))
+        mean_daily = float(np.mean(ret_y))
+        sharpe = (mean_daily - rf_daily) / (np.std(ret_y, ddof=1) + 1e-12) * np.sqrt(252)
+        cummax = nav_y.cummax()
+        drawdown = nav_y / cummax - 1.0
+        mdd = float(drawdown.min())
+        rows.append({
+            "年份": int(y),
+            "总收益": total_return,
+            "年化收益率": cagr,
+            "波动率": vol,
+            "夏普比率": sharpe,
+            "最大回撤": mdd,
+            "样本交易日数": int(len(ret_y)),
+            "开始日期": str(start.date()),
+            "结束日期": str(end.date()),
+        })
+    return pd.DataFrame(rows).sort_values("年份")
+
+
+def save_yearly_metrics(df: pd.DataFrame, out_name: str = "yearly_metrics.csv") -> str:
+    ensure_directories()
+    out_path = os.path.join(REPORT_DIR, out_name)
+    df.to_csv(out_path, index=False, encoding="utf-8-sig")
+    return out_path

@@ -107,9 +107,11 @@ def stage_backtest(args):
             k, v = kv.split("=")
             weights[to_ts_code(k)] = float(v)
 
-    sma_short = int(args.sma50) if hasattr(args, "sma50") and args.sma50 is not None else 50
-    sma_mid = int(args.sma100) if hasattr(args, "sma100") and args.sma100 is not None else 100
+    sma_short = int(args.sma50) if hasattr(args, "sma50") and args.sma50 is not None else 30
+    sma_mid = int(args.sma100) if hasattr(args, "sma100") and args.sma100 is not None else 80
     sma_long = int(args.sma200) if hasattr(args, "sma200") and args.sma200 is not None else 200
+    momentum_window = int(args.momentum_window) if hasattr(args, "momentum_window") and args.momentum_window is not None else 10
+    
     pf_nav, daily_ret, asset_val, prices, events = backtest(
         price_map,
         weights,
@@ -120,11 +122,16 @@ def stage_backtest(args):
         sma_short=sma_short,
         sma_mid=sma_mid,
         sma_long=sma_long,
+        momentum_window=momentum_window,
     )
 
     # 报告
     report_path = generate_markdown_report(pf_nav, daily_ret)
     logger.info(f"Report saved to {report_path}")
+    from report import compute_yearly_metrics, save_yearly_metrics
+    yearly_df = compute_yearly_metrics(pf_nav, daily_ret)
+    yearly_path = save_yearly_metrics(yearly_df)
+    logger.info(f"Yearly metrics saved to {yearly_path}")
 
     # 图表
     # 构建分资产净值（以初始1按权重分配）
@@ -162,44 +169,73 @@ def stage_gridsearch(args):
     def parse_list(s: str):
         return [int(x) for x in str(s).split(",") if str(x).strip()]
 
-    l50 = parse_list(getattr(args, "sma50_list", "30,40,50,60"))
-    l100 = parse_list(getattr(args, "sma100_list", "80,100,120"))
-    l200 = parse_list(getattr(args, "sma200_list", "180,200,250"))
-
-    rows = []
-    for w50 in l50:
-        for w100 in l100:
-            for w200 in l200:
-                pf_nav, daily_ret, asset_val, prices, events = backtest(
-                    price_map,
-                    weights,
-                    start_date=args.start,
-                    end_date=args.end,
-                    freq=args.rebalance,
-                    strategy="tvalue",
-                    sma_short=w50,
-                    sma_mid=w100,
-                    sma_long=w200,
-                )
-                metrics = compute_metrics(pf_nav, daily_ret)
-                rows.append({
-                    "SMA50": w50,
-                    "SMA100": w100,
-                    "SMA200": w200,
-                    "总收益": metrics["总收益"],
-                    "年化收益率": metrics["年化收益率"],
-                    "波动率": metrics["波动率"],
-                    "夏普比率": metrics["夏普比率"],
-                    "最大回撤": metrics["最大回撤"],
-                })
-                logger.info(
-                    f"GS {w50}-{w100}-{w200} AR={metrics['年化收益率']:.2%} Sharpe={metrics['夏普比率']:.2f} MDD={metrics['最大回撤']:.2%}"
-                )
-
     import os
     from config import REPORT_DIR
+    rows = []
+
+    if args.strategy == "momentum":
+        # 动量策略网格搜索
+        mom_list = parse_list(getattr(args, "momentum_list", "3,6,9,10,12"))
+        for mw in mom_list:
+            pf_nav, daily_ret, asset_val, prices, events = backtest(
+                price_map,
+                weights,
+                start_date=args.start,
+                end_date=args.end,
+                freq=args.rebalance,
+                strategy="momentum",
+                momentum_window=mw
+            )
+            metrics = compute_metrics(pf_nav, daily_ret)
+            rows.append({
+                "MomentumWindow": mw,
+                "总收益": metrics["总收益"],
+                "年化收益率": metrics["年化收益率"],
+                "波动率": metrics["波动率"],
+                "夏普比率": metrics["夏普比率"],
+                "最大回撤": metrics["最大回撤"],
+            })
+            logger.info(
+                f"GS MomWindow={mw} AR={metrics['年化收益率']:.2%} Sharpe={metrics['夏普比率']:.2f} MDD={metrics['最大回撤']:.2%}"
+            )
+        out_path = os.path.join(REPORT_DIR, "gridsearch_momentum.csv")
+    else:
+        # T-Value 策略网格搜索
+        l50 = parse_list(getattr(args, "sma50_list", "30,40,50,60"))
+        l100 = parse_list(getattr(args, "sma100_list", "80,100,120"))
+        l200 = parse_list(getattr(args, "sma200_list", "180,200,250"))
+        
+        for w50 in l50:
+            for w100 in l100:
+                for w200 in l200:
+                    pf_nav, daily_ret, asset_val, prices, events = backtest(
+                        price_map,
+                        weights,
+                        start_date=args.start,
+                        end_date=args.end,
+                        freq=args.rebalance,
+                        strategy="tvalue",
+                        sma_short=w50,
+                        sma_mid=w100,
+                        sma_long=w200,
+                    )
+                    metrics = compute_metrics(pf_nav, daily_ret)
+                    rows.append({
+                        "SMA50": w50,
+                        "SMA100": w100,
+                        "SMA200": w200,
+                        "总收益": metrics["总收益"],
+                        "年化收益率": metrics["年化收益率"],
+                        "波动率": metrics["波动率"],
+                        "夏普比率": metrics["夏普比率"],
+                        "最大回撤": metrics["最大回撤"],
+                    })
+                    logger.info(
+                        f"GS {w50}-{w100}-{w200} AR={metrics['年化收益率']:.2%} Sharpe={metrics['夏普比率']:.2f} MDD={metrics['最大回撤']:.2%}"
+                    )
+        out_path = os.path.join(REPORT_DIR, "gridsearch_sma.csv")
+
     df = pd.DataFrame(rows)
-    out_path = os.path.join(REPORT_DIR, "gridsearch_sma.csv")
     df.to_csv(out_path, index=False, encoding="utf-8-sig")
     logger.info(f"GridSearch saved to {out_path}")
 
@@ -215,12 +251,14 @@ def build_parser():
     parser.add_argument("--capital", default=1000000, help="初始资金规模，用于持仓明细导出")
     parser.add_argument("--use_default_weights", action="store_true", help="是否使用config中默认权重")
     parser.add_argument("--weights", default="", help="自定义权重，如 511010.SH=0.3,511880.SH=0.25,...")
-    parser.add_argument("--sma50", type=int)
-    parser.add_argument("--sma100", type=int)
-    parser.add_argument("--sma200", type=int)
+    parser.add_argument("--sma50", type=int, default=30)
+    parser.add_argument("--sma100", type=int, default=80)
+    parser.add_argument("--sma200", type=int, default=200)
     parser.add_argument("--sma50_list", default="20,30,40,50,60")
     parser.add_argument("--sma100_list", default="80,90,100,110,120")
     parser.add_argument("--sma200_list", default="180,190,200,210,220,230,240,250")
+    parser.add_argument("--momentum_window", type=int, help="绝对动量回顾窗口(月)")
+    parser.add_argument("--momentum_list", default="3,6,9,10,12", help="绝对动量网格搜索窗口列表(逗号分隔)")
     return parser
 
 
